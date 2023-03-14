@@ -1,0 +1,29 @@
+[package]
+name = "usbip_wrapper"
+version = "0.1.0"
+edition = "2021"
+description = """\
+
+  Simple program to bind/unbind USB devices via USBIP.
+  The script is idempotent and will return non-zero status-codes
+  only for _true_ errors.
+  In contrast to `usbip` it won't raise an error if the device
+  is already bound/unbounded and the command is repeated.
+  The program will handle multiple USB devices with the same VendorID
+  gracefully and will bind/unbind all matching devices.
+  This happens frequently when multiple Hardware keys from the same vendor
+  are plugged in.
+  It also accepts multiple VendorIDs and will only apply it to those that
+  are present.
+"""
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+anyhow = "1.0.69"
+clap = { version = "4.1.6", features = ["derive", "wrap_help", "env"] }
+env_logger = "0.10.0"
+log = "0.4.17"
+regex = "1.7.1"
+rstest = "0.16.0"
+xshell = "0.2.3"
