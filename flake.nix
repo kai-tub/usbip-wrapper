@@ -22,7 +22,7 @@
             description = "A simple usbip wrapper";
           };
         };
-        defaultPackage = packages.usbip_wrapper;
+        default = packages.x86_64-linux.usbip_wrapper;
 
         devShell.x86_64-linux =
           pkgs.mkShell {

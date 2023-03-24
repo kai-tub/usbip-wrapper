@@ -100,6 +100,7 @@ enum BindType {
 }
 
 impl BindType {
+    // TODO: Read up if this can be split into two parts!
     fn execute(&self, busid: &BusId, tcp_port: u32) -> anyhow::Result<()> {
         let port = tcp_port.to_string();
         let b = busid.to_string();
@@ -236,6 +237,41 @@ impl ListHostable {
     }
 }
 
+/// Small helper that parses the source to a usbid-{busid} map given a regular expression.
+/// The regular expression must contain the capture groups `busid` and `usbid`, otherwise
+/// the function will return an error.
+/// I wish there was a way to enforce this at compile time...
+fn build_usbid_map_helper(
+    source: &str,
+    regex: &Regex,
+) -> anyhow::Result<HashMap<UsbId, HashSet<BusId>>> {
+    if regex
+        .capture_names()
+        .filter_map(|cap| cap)
+        .collect::<HashSet<_>>()
+        != vec!["busid", "usbid"].into_iter().collect::<HashSet<_>>()
+    {
+        return Err(anyhow!("Provided invalid regular expression!\nMust have capture groups that contain `usbid` and `busid`!"));
+    }
+    let res = regex
+        .captures_iter(source)
+        .filter_map(|cap| match (cap.name("busid"), cap.name("usbid")) {
+            // defining a pair guarantees that there is no difference due to ordering
+            (Some(busid), Some(usbid)) => Some(IdPair {
+                bus_id: BusId(busid.as_str().to_string()),
+                usb_id: UsbId(usbid.as_str().to_string()),
+            }),
+            _ => None,
+        })
+        .fold(HashMap::new(), |mut acc, p| {
+            acc.entry(p.usb_id)
+                .or_insert(HashSet::new())
+                .insert(p.bus_id);
+            acc
+        });
+    Ok(res)
+}
+
 impl ListHostableParsable {
     fn new() -> anyhow::Result<Self> {
         let sh = Shell::new()?;
@@ -243,25 +279,12 @@ impl ListHostableParsable {
         Ok(ListHostableParsable(stdout))
     }
 
-    // Won: Alternative implementation to trait: Keep logic local
     fn build_usbid_map(&self) -> HashMap<UsbId, HashSet<BusId>> {
-        Regex::new(r"busid=(?P<busid>.*?)#usbid=(?P<usbid>.*?)#")
-            .unwrap()
-            .captures_iter(&self.0)
-            .filter_map(|cap| match (cap.name("busid"), cap.name("usbid")) {
-                // defining a pair guarantees that there is no difference due to ordering
-                (Some(busid), Some(usbid)) => Some(IdPair {
-                    bus_id: BusId(busid.as_str().to_string()),
-                    usb_id: UsbId(usbid.as_str().to_string()),
-                }),
-                _ => None,
-            })
-            .fold(HashMap::new(), |mut acc, p| {
-                acc.entry(p.usb_id)
-                    .or_insert(HashSet::new())
-                    .insert(p.bus_id);
-                acc
-            })
+        build_usbid_map_helper(
+            &self.0,
+            &Regex::new(r"busid=(?P<busid>.*?)#usbid=(?P<usbid>.*?)#").unwrap(),
+        )
+        .unwrap()
     }
 }
 
@@ -289,25 +312,13 @@ impl ListMountable {
         }
     }
 
-    // Won: Alternative implementation to trait: Keep logic local
     fn build_usbid_map(&self) -> HashMap<UsbId, HashSet<BusId>> {
-        Regex::new(r"\s+(?P<busid>[0-9\-]+):.+?:.+\((?P<usbid>[0-9a-fA-F]+:[0-9a-fA-F]+)\)")
-            .unwrap()
-            .captures_iter(&self.0)
-            .filter_map(|cap| match (cap.name("busid"), cap.name("usbid")) {
-                // defining a pair guarantees that there is no difference due to ordering
-                (Some(busid), Some(usbid)) => Some(IdPair {
-                    bus_id: BusId(busid.as_str().to_string()),
-                    usb_id: UsbId(usbid.as_str().to_string()),
-                }),
-                _ => None,
-            })
-            .fold(HashMap::new(), |mut acc, p| {
-                acc.entry(p.usb_id)
-                    .or_insert(HashSet::new())
-                    .insert(p.bus_id);
-                acc
-            })
+        build_usbid_map_helper(
+            &self.0,
+            &Regex::new(r"\s+(?P<busid>[0-9\-]+):.+?:.+\((?P<usbid>[0-9a-fA-F]+:[0-9a-fA-F]+)\)")
+                .unwrap(),
+        )
+        .unwrap()
     }
 }
 
@@ -332,6 +343,7 @@ impl ListUnmountable {
         }
     }
 
+    // TODO: Think about how to refactor this code!
     fn build_usbid_map(&self) -> HashMap<UsbId, HashSet<Port>> {
         Regex::new(r"Port\s+(?P<port>\d+).*\n.*\((?P<usbid>[0-9a-fA-F]+:[0-9a-fA-F]+)\)")
             .unwrap()
