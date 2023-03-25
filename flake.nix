@@ -24,6 +24,12 @@
         };
         default = packages.x86_64-linux.usbip_wrapper;
 
+        nixosModules.default = import ./usbip_wrapper.nix self;
+        nixosModules.usbip_wrapper = import ./usbip_wrapper.nix self;
+
+        # chatgpt says:
+        # nixosModules.usbip_wrapper = { ... }: { systemd.packages = [] }
+
         devShell.x86_64-linux =
           pkgs.mkShell {
             nativeBuildInputs = with pkgs; [
