@@ -89,6 +89,7 @@
                   services.usbip_wrapper = {
                     enable = true;
                     port = 5000;
+                    usb_ids = [ "0627:0001" ];
                   };
                   # This should be configurable to test different kernel version interacting with each other
                   # boot.kernelPackages = pkgs.linuxPackages_latest;
@@ -96,8 +97,13 @@
                   # Test that the flake doesn't break the user-defined configuration
                   boot.kernelModules = [ "zfs" ];
                   boot.extraModulePackages = with config.boot.kernelPackages; [ zfs ];
+                  environment.sessionVariables = rec {
+                    USBIP_TCP_PORT = "${builtins.toString config.services.usbip_wrapper.port}";
+                    PATH = [ "${config.boot.kernelPackages.usbip}/bin" ];
+                  };
                   environment.systemPackages = [
                     pkgs.usbutils
+                    packages.x86_64-linux.default
                   ];
                 })
               ];
