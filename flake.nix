@@ -52,7 +52,7 @@
             description = "A simple usbip wrapper";
           };
         };
-        default = packages.x86_64-linux.usbip_wrapper;
+        default = packages."${system}".usbip_wrapper;
       };
 
       # chatgpt says:
@@ -104,6 +104,8 @@
                   environment.systemPackages = [
                     pkgs.usbutils
                     packages.x86_64-linux.default
+                    pkgs.socat
+                    pkgs.ripgrep
                   ];
                 })
               ];

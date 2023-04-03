@@ -63,6 +63,31 @@ in
     # Nix will merge the lists during the resolving phase!
     boot.extraModulePackages = with config.boot.kernelPackages; [ usbip ];
     boot.kernelModules = [ "usbip_host" "vhci-hcd" ];
+
+    systemd.services.usbip_server_waiter = {
+      description = "Service that waits until usbip server is initialized.";
+      requires = [ "usbip_server.service" ];
+      # TODO: Think if this makes any sense!
+      # This ensures that the service itself has printed a magic message that indicates
+      # it is ready to start accepting incoming requests.
+      before = [ "usbip_server.service" ];
+      serviceConfig = {
+        Type = "oneshot";
+        # RemainAfterExit = "true";
+        # --quiet: if match is found will return status code
+        # socat EXEC:'journalctl --unit usbip_server.service --since "now" --follow' EXEC:'rg --quiet --line-buffered "started"'
+        ExecStart = ''
+          ${pkgs.bash}/bin/bash -c 'journalctl --unit usbip_server.service --since "now" --follow | ${pkgs.ripgrep}/bin/rg --quiet --line-buffered "listening on"'
+        '';
+        # Restart = "always";
+        # Basic Hardening
+        NoNewPrivileges = "yes";
+        PrivateTmp = "yes";
+      };
+      # I assume path isn't working as the shell doesn't inherit it's execution?
+      path = [ "${config.systemd.package}/lib" "${pkgs.ripgrep}/bin" "${pkgs.socat}/bin" ];
+    };
+
     systemd.services.usbip_server = {
       description = "Start usbip server.";
       # TODO: Re-enable after a few tests!
@@ -168,7 +193,7 @@ in
       # Do i need the same for the socket?
       # If usbip_server shuts down, also stop the proxy
       bindsTo = [ "usbip_server.service" ];
-      after = [ "usbip_server.service" ];
+      after = [ "usbip_server.service" "usbip_server_waiter.service" ];
       unitConfig = {
         # make the services "findable" for each other
         # but not other local services
