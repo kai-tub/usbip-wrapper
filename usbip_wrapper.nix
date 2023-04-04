@@ -189,11 +189,12 @@ in
     systemd.services.usbip_proxy = {
       description = "A wrapper script that forwards the TCP data from a systemd controled socket to the usbip managed socket.";
       # Auto-mount the yubico usb-key if available
-      wants = [ "usbip_host_key.service" ];
+      wants = [ "usbip_server.service" "usbip_host_key.service" ];
       # Do i need the same for the socket?
       # If usbip_server shuts down, also stop the proxy
+      # Just to avoid confusion but usbip_host_key service would be sufficient with the bindsTo `usbip_server`
       bindsTo = [ "usbip_server.service" ];
-      after = [ "usbip_server.service" "usbip_server_waiter.service" ];
+      after = [ "usbip_server.service" "usbip_server_waiter.service" "usbip_host_key.service" ];
       unitConfig = {
         # make the services "findable" for each other
         # but not other local services
