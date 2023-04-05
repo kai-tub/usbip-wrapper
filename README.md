@@ -60,3 +60,10 @@ Things that I thought about adding to the roadmap but rejected because ...:
   Thirdly, this would lead to cases where a reviewer of the CLI calls cannot be sure which USB devices are included and which aren't, especially if USB devices have
   similar names, or if only the vendor name is used but not the product name. For example, if the custom name is _yubikey_, it isn't clear which key is meant.
   This is a bad user experience and there already is a _unique_ way to describe USB devices by using the _official_ USB ID list!
+
+## Systemd Units
+
+The project contains, probably over-engineered, systemd unit files that make it
+easy to securely run the `usbip_wrapper` in a transparent manner and without any interaction
+required, while only running the server if required and guaranteeing that the server
+shuts down after a specific time.
