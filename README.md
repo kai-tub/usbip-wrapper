@@ -67,3 +67,13 @@ The project contains, probably over-engineered, systemd unit files that make it
 easy to securely run the `usbip_wrapper` in a transparent manner and without any interaction
 required, while only running the server if required and guaranteeing that the server
 shuts down after a specific time.
+
+## Testing
+
+### Integration Tests
+
+Simply execute the entire cluster-style integration tests with:
+
+```
+nix build -L .#nixosConfigurations.<test-name>
+```
