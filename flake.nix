@@ -67,36 +67,110 @@
       nixosConfigurations =
         let
           lib = nixpkgs.lib;
+          port = 5000;
+          # This is a QEMU created USB device and is available
+          # on all QEMU instances!
+          fake_usb_id = "0627:0001";
+          common_module = {
+            imports = [
+              # import usbip
+              nixosModules.default
+            ];
+
+            networking.firewall.allowedTCPPorts = [ port ];
+            virtualisation.graphics = false;
+            environment.systemPackages = [
+              # pkgs.usbutils 
+              packages.x86_64-linux.default
+            ];
+            environment.sessionVariables = rec {
+              USBIP_TCP_PORT = "${builtins.toString port}";
+              PATH = [ "${pkgs.linuxPackages_latest.usbip}/bin" ];
+              RUST_LOG = "debug";
+            };
+          };
+          base_instance = {
+            enable = true;
+            inherit port;
+            usb_ids = [ fake_usb_id ];
+            # Must be large enough to ensure that entire integration pipeline
+            # works from beginning to end, as the early shutdown might happen
+            # right after mounting one and before unmounting.
+            # timeout = "30";
+          };
         in
         {
+          # Quickly verify that the systemd submodule interface works as expected
+          # I do not do anything with the values!
+          # Just boot and verify that the systemctl unit exists!
+          clientUnitTest =
+            let
+              host = "remote_host";
+            in
+            pkgs.nixosTest ({
+              name = "client-unit-test";
+              nodes = {
+                client = { config, pkgs, ... }: {
+                  imports = [ common_module ];
+                  services.usbip_wrapper_client.instances.test_instance = base_instance // {
+                    inherit host;
+                  };
+                };
+              };
+              skipLint = true;
+              # test that client systemctl file is correctly created
+              testScript = ''
+                start_all()
+                _, out = client.systemctl("is-enabled usbip_mounter_${host}")
+                print(out)
+              
+                # linked means that is exists but isn't depended by anyone
+                assert "linked" in out, "Cannot find unit file!"
+              '';
+            });
+
+          hostSelfTest =
+            let
+              host_timeout = "2";
+            in
+            pkgs.nixosTest
+              ({
+                name = "hoster-self-test";
+                nodes =
+                  {
+                    hoster_stable = { config, pkgs, ... }: {
+                      imports = [ common_module ];
+                      services.usbip_wrapper_host = base_instance // {
+                        timeout = host_timeout;
+                      };
+                      boot. kernelPackages = pkgs.linuxPackages;
+                    };
+                  };
+                skipLint = true;
+                testScript = ''
+                  from time import sleep      
+                  # something
+                  start_all()
+
+                  hoster_stable.wait_for_unit("multi-user.target")
+                  # Run twice to ensure that timer can be re-used/restarted
+                  for _ in range(2):
+                    status, stdout = hoster_stable.execute("usbip_wrapper list-mountable --host=localhost", timeout=10)
+                    assert "${fake_usb_id}" in stdout
+                    with subtest("test keep alive status"):
+                      _, usbip_status = hoster_stable.systemctl("is-active usbip_server")
+                      assert usbip_status.strip() == "active", "Directly after accessing port the server should be active for a pre-defined time."
+                    # now wait until the host-time passes
+                    sleep(int("${host_timeout}") + 1)
+                    with subtest("test auto-shutdown"):
+                      _, usbip_status = hoster_stable.systemctl("is-active usbip_server")
+                      assert usbip_status.strip() == "inactive", "Should automatically stop the server service after timeout time has passed"
+                '';
+              });
+
           # This tests the entire pipeline. The wrapper, the systemd units (socket activation, timeout), mounting/unmounting, etc.
           # TODO: As this is a deriviation, it should be moved to packages and not nixosConfiguration!
           integrationTest =
-            let
-              port = 5000;
-              # This is a QEMU created USB device and is available
-              # on all QEMU instances!
-              fake_usb_id = "0627:0001";
-              host_timeout = 2;
-              common_module = {
-                imports = [
-                  # import usbip
-                  nixosModules.default
-                ];
-
-                networking.firewall.allowedTCPPorts = [ port ];
-                virtualisation.graphics = false;
-                environment.systemPackages = [
-                  # pkgs.usbutils 
-                  packages.x86_64-linux.default
-                ];
-                environment.sessionVariables = rec {
-                  USBIP_TCP_PORT = "${builtins.toString port}";
-                  PATH = [ "${pkgs.linuxPackages_latest.usbip}/bin" ];
-                  RUST_LOG = "debug";
-                };
-              };
-            in
             pkgs.nixosTest
               ({
                 name = "full-integration-test";
@@ -104,40 +178,35 @@
                   let
                     hoster_base = {
                       imports = [ common_module ];
-                      services.usbip_wrapper = {
-                        enable = true;
-                        port = port;
-                        usb_ids = [ "${fake_usb_id}" ];
-                        host_timeout = "${builtins.toString host_timeout}";
+                      services.usbip_wrapper_host = base_instance // {
+                        timeout = "30";
                       };
                     };
                     client_base = {
                       imports = [ common_module ];
-                      services.usbip_wrapper = {
-                        enable = true;
-                        mode = "client";
-                        port = port;
-                        usb_ids = [ "${fake_usb_id}" ];
-                        host_timeout = "${builtins.toString host_timeout}";
-                      };
                     };
                   in
                   {
-                    hoster_latest = { config, pkgs, ... }: {
-                      imports = [ hoster_base ];
+                    client_latest = { config, pkgs, ... }: {
+                      imports = [ client_base ];
                       boot.kernelPackages = pkgs.linuxPackages_latest;
+                      # create systemd unit wi
+                      services.usbip_wrapper_client.instances.hoster_stable = base_instance // { host = "hoster_stable"; };
+                      services.usbip_wrapper_client.instances.hoster_latest = base_instance // { host = "hoster_latest"; };
+                    };
+                    client_stable = { config, pkgs, ... }: {
+                      imports = [ client_base ];
+                      boot.kernelPackages = pkgs.linuxPackages;
+                      services.usbip_wrapper_client.instances.hoster_stable = base_instance // { host = "hoster_stable"; };
+                      services.usbip_wrapper_client.instances.hoster_latest = base_instance // { host = "hoster_latest"; };
                     };
                     hoster_stable = { config, pkgs, ... }: {
                       imports = [ hoster_base ];
                       boot.kernelPackages = pkgs.linuxPackages;
                     };
-                    client_latest = { config, pkgs, ... }: {
-                      imports = [ client_base ];
+                    hoster_latest = { config, pkgs, ... }: {
+                      imports = [ hoster_base ];
                       boot.kernelPackages = pkgs.linuxPackages_latest;
-                    };
-                    client_stable = { config, pkgs, ... }: {
-                      imports = [ client_base ];
-                      boot.kernelPackages = pkgs.linuxPackages;
                     };
                   };
 
@@ -148,29 +217,8 @@
         
                   start_all()
 
-                  def hoster_self_test(hoster):
-                    # test entire systemctl pipeline
-                    with subtest("self test hoster"):
-                      print(hoster.succeed("uname -a"))
-                      # Run twice to ensure that timer can be re-used/restarted
-                      for _ in range(2):
-                        with subtest("list local"):
-                          status, stdout = hoster.execute("usbip_wrapper list-mountable --host=localhost", timeout=10)
-                          assert "${fake_usb_id}" in stdout
-                        with subtest("test keep alive status"):
-                          _, usbip_status = hoster.systemctl("is-active usbip_server")
-                          assert usbip_status.strip() == "active", "Directly after accessing port the server should be active for a pre-defined time."
-                        # now wait until the host-time passes
-                        sleep(int("${builtins.toString host_timeout}") + 1)
-                        with subtest("test auto-shutdown"):
-                          _, usbip_status = hoster.systemctl("is-active usbip_server")
-                          assert usbip_status.strip() == "inactive", "Should automatically stop the server service after timeout time has passed"
-
                   hoster_latest.wait_for_unit("multi-user.target")
-                  hoster_self_test(hoster_latest)
-
                   hoster_stable.wait_for_unit("multi-user.target")
-                  hoster_self_test(hoster_stable)
 
                   def client_test(client, host_name):
                     with subtest("test client access"):
@@ -184,12 +232,18 @@
                         sleep(.5)
                         client.succeed(f"""usbip_wrapper unmount-remote""", timeout=3)
                         sleep(.5)
+                      with subtest("test client systemctl instances"):
+                        a, b = client.systemctl(f"start usbip_mounter_{host_name}")
+                        print(a)
+                        print(b)
+                        sleep(.5)
+                        client.succeed(f"""usbip_wrapper unmount-remote""", timeout=3)
+                        sleep(.5)
 
                   client_test(client_latest, "hoster_latest")
                   client_test(client_latest, "hoster_stable")
                   client_test(client_stable, "hoster_latest")
                   client_test(client_stable, "hoster_stable")
-
                 '';
               });
           vm = lib.makeOverridable lib.nixosSystem {
