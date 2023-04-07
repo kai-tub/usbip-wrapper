@@ -105,16 +105,10 @@
           USBIP_TCP_PORT = 5000;
         };
 
-      # FUTURE: Add auto-test functionality via flake checks
-      # check via flake --checks
-      # checks.x86_64-linux.test = pkgs.nixosTest (test_config);
+      # flake check only ensure that the deriviations can be build and doesn't actually run them
 
       # TODO:
-      # make flake checks for easier testing
-      # maybe parallel
       # update readme
-      # ask for help with beer
-      # Change devShell to devShells
 
       nixosConfigurations =
         let
