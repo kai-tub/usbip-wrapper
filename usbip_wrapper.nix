@@ -1,8 +1,8 @@
 # should differ between client/server mode
 flake: { config, lib, pkgs, ... }:
 let
-  cfg = config.services.usbip_wrapper_host;
-  # cfg_client = config.services.usbip_wrapper_client;
+  cfg_host = config.services.usbip_wrapper_host;
+  cfg_client = config.services.usbip_wrapper_client;
   usbip_wrapper = flake.packages.x86_64-linux.usbip_wrapper;
   port_internal = "5555";
 in
@@ -10,66 +10,8 @@ in
   imports = [
   ];
 
-  options = {
-    services.usbip_wrapper_client = {
-      default = { };
-      description = "usbip_wrapper_client instance interface";
-      # enable = lib.mkEnableOption "Global enable flag for all usbip_wrapper client instances.";
-      instances = lib.mkOption {
-        # attrsOf t: An attribute set of elements with the type t. 
-        # The merge function zip all attribute sets into one.
-        # Attribute values of the resulting attribute set are merged with the merge function of the type t.
-        # submodule: https://nixos.org/manual/nixos/stable/index.html#section-option-types-submodule
-        default = { };
-        type = lib.types.attrsOf (lib.types.submodule {
-          options = {
-            enable = lib.mkEnableOption "Configure a usbip_wrapper client instance.";
-            description = "An example opti";
-
-            package = lib.mkOption {
-              type = lib.types.package;
-              default = usbip_wrapper;
-              description = ''
-                The usbip_wrapper package to use with the service.
-              '';
-            };
-
-            usb_ids = lib.mkOption {
-              type = lib.types.listOf lib.types.str;
-              description = ''
-                The USB device(s) that should be mounted via usbip.
-                Check these values with `lsusb`.
-              '';
-              example = ''[ "0627:0001" ]'';
-            };
-
-            port = lib.mkOption {
-              type = lib.types.int;
-              default = 5000;
-              description = ''
-                The port that the usbip client will communicate over.
-              '';
-            };
-
-            host = lib.mkOption {
-              type = lib.types.str;
-              description = ''
-                This is the _name_ of the `host`s from the viewpoint of the **client**.
-                The client takes this value and tries to connect to the host by resolving the provided value.
-              '';
-              default = "";
-              example = ''"your-device@XXX.tailscale.net" | "192.XXX.XXX.XXX"'';
-            };
-          };
-        });
-      };
-    };
-    services.usbip_wrapper_host = {
-      enable = lib.mkEnableOption ''
-        A usbip_wrapper host configuration
-      '';
-      # could set port here
-      # and usb device, I guess
+  options =
+    let
       package = lib.mkOption {
         type = lib.types.package;
         default = usbip_wrapper;
@@ -78,42 +20,83 @@ in
         '';
       };
 
-      usb_ids = lib.mkOption {
+      mk_opt_usb_ids = verb: lib.mkOption {
         type = lib.types.listOf lib.types.str;
-        description = ''
-          The USB device(s) that should be hosted/mounted via usbip.
-          Check these values with `lsusb`. For example:
-        '';
         example = ''[ "0627:0001" ]'';
+        description = ''
+          The USB device(s) that should be ${verb} via usbip.
+          Check these values with `lsusb`.
+        '';
       };
 
-      port = lib.mkOption {
+      mk_opt_port = device: lib.mkOption {
         type = lib.types.int;
         default = 5000;
         description = ''
-          The port that the usbip server/client will communicate over.
+          The port that the usbip ${device} will communicate over.
         '';
       };
+    in
+    {
+      services.usbip_wrapper_client = {
+        default = { };
+        # description = "usbip_wrapper_client instance interface";
+        # enable = lib.mkEnableOption "Global enable flag for all usbip_wrapper client instances.";
+        instances = lib.mkOption {
+          # attrsOf t: An attribute set of elements with the type t. 
+          # The merge function zip all attribute sets into one.
+          # Attribute values of the resulting attribute set are merged with the merge function of the type t.
+          # submodule: https://nixos.org/manual/nixos/stable/index.html#section-option-types-submodule
+          default = { };
+          type = lib.types.attrsOf (lib.types.submodule {
+            options = {
+              enable = lib.mkEnableOption "Configure a usbip_wrapper client instance.";
+              description = "An example opti";
 
-      timeout = lib.mkOption {
-        type = lib.types.str;
-        description = ''
-          systemd time value that defines how long the usbip server
-          should live. Only used if `mode=host` otherwise the value is ignored.
-          This value will NOT be checked!
-          Please see https://www.freedesktop.org/software/systemd/man/systemd.time.html#
-          for more information!
+              inherit package;
+              usb_ids = mk_opt_usb_ids "mounted";
+              port = mk_opt_port "client";
+
+              host = lib.mkOption {
+                type = lib.types.str;
+                description = ''
+                  This is the _name_ of the `host`s from the viewpoint of the **client**.
+                  The client takes this value and tries to connect to the host by resolving the provided value.
+                '';
+                example = ''"your-device@XXX.tailscale.net" | "192.XXX.XXX.XXX"'';
+              };
+            };
+          });
+        };
+      };
+      services.usbip_wrapper_host = {
+        enable = lib.mkEnableOption ''
+          A usbip_wrapper host configuration
         '';
-        default = "30s";
-        example = ''30s | 1h | 2 hours | 10 seconds | 50 ms'';
+        inherit package;
+
+        usb_ids = mk_opt_usb_ids "hosted";
+        port = mk_opt_port "server";
+
+        timeout = lib.mkOption {
+          type = lib.types.str;
+          description = ''
+            systemd time value that defines how long the usbip server
+            should live.
+            This value will NOT be checked!
+            Please see https://www.freedesktop.org/software/systemd/man/systemd.time.html#
+            for more information!
+          '';
+          default = "30s";
+          example = ''30s | 1h | 2 hours | 10 seconds | 50 ms'';
+        };
       };
     };
-  };
 
   config = lib.mkMerge [
     # Maybe required to put () around the equality check!
     (lib.mkIf
-      (config.services.usbip_wrapper_client.instances != { })
+      (cfg_client.instances != { })
       {
         # global requirement
         boot.extraModulePackages = with config.boot.kernelPackages; [ usbip ];
@@ -129,7 +112,7 @@ in
           # };
           # Should this still instantiate from a systemd template?
           # Feel like this isn't necessary for the first version.
-          # instantiated_services = builtins.listToAttrs (builtins.map instantiateService cfg.host_names);
+          # instantiated_services = builtins.listToAttrs (builtins.map instantiateService cfg_host.host_names);
           # in
           lib.mapAttrs'
             (name: instance_value:
@@ -142,24 +125,22 @@ in
                   description = "Template for Remote USB mounter via usbip";
                   wants = [ "network-online.target" ];
                   after = [ "network-online.target" ];
-                  # FUTURE: Think about if this is more or less clear what is going on ?
-                  environment = {
-                    USBIP_TCP_PORT = "${builtins.toString instance_value.port}";
-                    USBIP_REMOTE_HOST = "${instance_value.host}";
-                  };
 
                   serviceConfig = {
                     Type = "oneshot";
                     ExecStart = ''
-                      ${cfg.package}/bin/usbip_wrapper mount-remote -- ${builtins.concatStringsSep " " instance_value.usb_ids}
+                      ${cfg_host.package}/bin/usbip_wrapper mount-remote \
+                        --host="${instance_value.host}" \
+                        --tcp-port="${builtins.toString instance_value.port}" \
+                        -- ${builtins.concatStringsSep " " instance_value.usb_ids}
                     '';
                   };
                   path = [ "${config.boot.kernelPackages.usbip}" ];
                 };
               })
-            config.services.usbip_wrapper_client.instances;
+            cfg_client.instances;
       })
-    (lib.mkIf cfg.enable {
+    (lib.mkIf cfg_host.enable {
 
       # This seems to work! This is amazing!
       # I can simply add these as a dependency from within the flake
@@ -188,7 +169,11 @@ in
           PrivateTmp = "yes";
         };
         # I assume path isn't working as the shell doesn't inherit it's execution?
-        path = [ "${config.systemd.package}/lib" "${pkgs.ripgrep}/bin" "${pkgs.socat}/bin" ];
+        path = [
+          "${config.systemd.package}/lib"
+          "${pkgs.ripgrep}/bin"
+          "${pkgs.socat}/bin"
+        ];
       };
 
       systemd.services.usbip_server = {
@@ -199,15 +184,12 @@ in
         # Stop the server when the timeout service is started,
         # which is controlled by a systemd timer unit!
         conflicts = [ "usbip_host_timeout.service" ];
-        environment = {
-          USBIP_TCP_PORT = "${port_internal}";
-          # systemd recommends against PID files!
-          # USBIP_DAEMON_PID_PATH = "/var/run/usbipd.pid";
-        };
         serviceConfig = {
           Type = "simple";
           ExecStart = ''
-            ${cfg.package}/bin/usbip_wrapper start-usb-hoster
+            ${cfg_host.package}/bin/usbip_wrapper \
+              start-usb-hoster \
+              --tcp-port=${port_internal}
           '';
           # TODO: Disable pid file if not necessary
           # TODO: Think where the unhost command should be run! 
@@ -239,7 +221,7 @@ in
       systemd.timers.usbip_host_timeout = {
         timerConfig = {
           AccuracySec = 1;
-          OnActiveSec = "${cfg.timeout}";
+          OnActiveSec = "${cfg_host.timeout}";
           # TODO: Write a tutorial about how this can be utilized
           # to repeatably stop the other service!
           # If not set, then it won't work!
@@ -249,15 +231,14 @@ in
 
       systemd.services.usbip_hoster = {
         description = "Host usb device via usbip.";
-        environment = {
-          USBIP_TCP_PORT = "${port_internal}";
-        };
         wants = [ "usbip_host_timeout.timer" ];
         bindsTo = [ "usbip_server.service" ];
         serviceConfig = {
           Type = "oneshot";
           ExecStart = ''
-            ${cfg.package}/bin/usbip_wrapper host -- ${builtins.concatStringsSep " " cfg.usb_ids}
+            ${cfg_host.package}/bin/usbip_wrapper host \
+              --tcp-port=${port_internal} \
+              -- ${builtins.concatStringsSep " " cfg_host.usb_ids}
           '';
           # Restart = "always";
           # Basic Hardening
@@ -301,7 +282,7 @@ in
         # Given the firewall configuration, this setting should be safe
         # and allow testing availability via localhost; also when private network
         # is set, even 'unsafe' local application shouldn't be able to see the traffic
-        listenStreams = [ "${builtins.toString cfg.port}" ];
+        listenStreams = [ "${builtins.toString cfg_host.port}" ];
         wantedBy = [ "sockets.target" ];
         socketConfig = {
           # Accept = true;
