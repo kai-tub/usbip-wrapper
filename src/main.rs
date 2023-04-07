@@ -4,7 +4,7 @@ use std::path::PathBuf;
 use anyhow::{anyhow, Context};
 use clap::{Parser, Subcommand};
 use env_logger;
-use log::{debug, error, warn};
+use log::{debug, error};
 use regex::Regex;
 use std::collections::{HashMap, HashSet};
 use std::string::String;

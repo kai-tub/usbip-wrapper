@@ -92,7 +92,7 @@
           });
         };
 
-      devShell.x86_64-linux =
+      devShells.x86_64-linux =
         pkgs.mkShell {
           nativeBuildInputs = with pkgs; [
             rustc
