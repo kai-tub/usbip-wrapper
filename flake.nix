@@ -31,6 +31,7 @@
           # } // { _module.check = false; };
           # eval._module.check = false;
           # This is currently broken!
+          # https://bmcgee.ie/posts/2023/03/til-how-to-generate-nixos-module-docs/
           # doc = pkgs.nixosOptionsDoc {
           #   options = eval.options;
           # };
@@ -108,68 +109,28 @@
       # check via flake --checks
       # checks.x86_64-linux.test = pkgs.nixosTest (test_config);
 
+      # TODO:
+      # make flake checks for easier testing
+      # maybe parallel
+      # update readme
+      # ask for help with beer
+      # Change devShell to devShells
+
       nixosConfigurations =
         let
-          lib = nixpkgs.lib;
-          port = 5000;
-          # This is a QEMU created USB device and is available
-          # on all QEMU instances!
-          fake_usb_id = "0627:0001";
-          common_module = {
-            imports = [
-              # import usbip
-              nixosModules.default
-            ];
-
-            networking.firewall.allowedTCPPorts = [ port ];
-            virtualisation.graphics = false;
-            environment.systemPackages = [
-              # pkgs.usbutils 
-              packages.x86_64-linux.default
-            ];
-          };
-          base_instance = {
-            enable = true;
-            inherit port;
-            usb_ids = [ fake_usb_id ];
+          system = "x86_64-linux";
+          vm_conf = import ./vm.nix {
+            inherit nixpkgs;
+            inherit pkgs;
+            inherit system;
+            usbip_module = nixosModules.default;
+            usbip_pkg = packages."${system}".usbip_wrapper;
           };
         in
         {
-          vm = lib.makeOverridable lib.nixosSystem {
-            inherit system;
-            modules =
-              let
-                pkgs = import nixpkgs { inherit system; };
-              in
-              [
-                # import the usbip_wrapper modules
-                nixosModules.default
-                ({ pkgs, config, ... }: {
-                  system.stateVersion = "22.11";
-                  services.usbip_wrapper = {
-                    enable = true;
-                    port = 5000;
-                    usb_ids = [ "0627:0001" ];
-                  };
-                  # This should be configurable to test different kernel version interacting with each other
-                  # boot.kernelPackages = pkgs.linuxPackages_latest;
-                  boot.kernelPackages = pkgs.linuxPackages;
-                  # Test that the flake doesn't break the user-defined configuration
-                  boot.kernelModules = [ "zfs" ];
-                  boot.extraModulePackages = with config.boot.kernelPackages; [ zfs ];
-                  environment.sessionVariables = rec {
-                    USBIP_TCP_PORT = "${builtins.toString config.services.usbip_wrapper.port}";
-                    PATH = [ "${config.boot.kernelPackages.usbip}/bin" ];
-                  };
-                  environment.systemPackages = [
-                    pkgs.usbutils
-                    packages.x86_64-linux.default
-                    pkgs.socat
-                    pkgs.ripgrep
-                  ];
-                })
-              ];
-          };
+          # only enable if required, as otherwise nix flake check fails to load this!
+          # vm = vm_conf.vm;
         };
+
     };
 }

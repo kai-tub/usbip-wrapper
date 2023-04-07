@@ -192,16 +192,14 @@ in
               --tcp-port=${port_internal}
           '';
           # TODO: Disable pid file if not necessary
-          # TODO: Think where the unhost command should be run! 
-          # just to cleanly shut down
-          # or does shutting down the server take care of it?
           Restart = "no";
           # Basic Hardening
           NoNewPrivileges = "yes";
           PrivateTmp = "yes";
-          # PrivateDevices = "no";
+
+          PrivateDevices = "no";
           # Limit access to only contain relevant USB devices!
-          # DeviceAllow = [ "char-usb/*" "char-usb_device/*" ];
+          DeviceAllow = [ "char-usb/*" "char-usb_device/*" ];
         };
         path = [ "${config.boot.kernelPackages.usbip}" ];
       };
@@ -210,6 +208,7 @@ in
       # interaction and to not keep hosting it 'forever' to my server
       # Unhosting would also be an option but then the server would be running
       # without any reason
+      # FUTURE: I could also consider adding a socket-based timeout for a shorter interval
       systemd.services.usbip_host_timeout = {
         description = "USBIP Server Shutdown";
         serviceConfig = {
@@ -222,9 +221,6 @@ in
         timerConfig = {
           AccuracySec = 1;
           OnActiveSec = "${cfg_host.timeout}";
-          # TODO: Write a tutorial about how this can be utilized
-          # to repeatably stop the other service!
-          # If not set, then it won't work!
           RemainAfterElapse = false;
         };
       };

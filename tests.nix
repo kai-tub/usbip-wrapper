@@ -19,7 +19,6 @@ let
     virtualisation.graphics = false;
     environment.systemPackages = [
       # pkgs.usbutils 
-      # packages.x86_64-linux.default
       usbip_pkg
     ];
   };
@@ -47,7 +46,7 @@ in
           };
         };
       };
-      skipLint = true;
+      skipLint = false;
       # test that client systemctl file is correctly created
       testScript = ''
         start_all()
@@ -79,16 +78,20 @@ in
               };
             };
           };
-        skipLint = true;
+
+        skipLint = false;
+
         testScript = ''
           from time import sleep
-          # something
+
+          port = ${builtins.toString port}
+
           start_all()
 
           hoster_stable.wait_for_unit("multi-user.target")
           # Run twice to ensure that timer can be re-used/restarted
           for _ in range(2):
-            status, stdout = hoster_stable.execute("usbip_wrapper list-mountable --host=localhost --tcp-port=${builtins.toString port}", timeout=10)
+            status, stdout = hoster_stable.execute(f"usbip_wrapper list-mountable --host=localhost --tcp-port={port}", timeout=10)
             assert "${fake_usb_id}" in stdout
             with subtest("test keep alive status"):
               _, usbip_status = hoster_stable.systemctl("is-active usbip_server")
@@ -153,11 +156,13 @@ in
             };
           };
 
-        skipLint = true;
+        skipLint = false;
 
         testScript = ''
           from time import sleep
-        
+
+          port = ${builtins.toString port}
+         
           start_all()
 
           hoster_latest.wait_for_unit("multi-user.target")
@@ -170,17 +175,17 @@ in
               with subtest(f"client can discover {host_name}"):
                 status, stdout = client.execute(f"usbip_wrapper list-mountable --host={host_name} --tcp-port=${builtins.toString port}", timeout=10)
                 assert "${fake_usb_id}" in stdout
-                client.succeed(f"usbip_wrapper mount-remote --host={host_name} --tcp-port=${builtins.toString port}", timeout=3)
+                client.succeed(f"usbip_wrapper mount-remote --host={host_name} --tcp-port={port}", timeout=3)
                 # it takes a bit to propagate the mounting to the local USPIP interface as some time is spent mounting it
                 sleep(.5)
-                client.succeed(f"""usbip_wrapper unmount-remote""", timeout=3)
+                client.succeed("usbip_wrapper unmount-remote", timeout=3)
                 sleep(.5)
               with subtest("test client systemctl instances"):
                 a, b = client.systemctl(f"start usbip_mounter_{host_name}")
                 print(a)
                 print(b)
                 sleep(.5)
-                client.succeed(f"""usbip_wrapper unmount-remote""", timeout=3)
+                client.succeed("usbip_wrapper unmount-remote", timeout=3)
                 sleep(.5)
 
           client_test(client_latest, "hoster_latest")
