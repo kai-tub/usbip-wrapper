@@ -1,6 +1,7 @@
 # USB/IP Wrapper
 
 A nice wrapper around the [USB/IP tool](https://usbip.sourceforge.net/).
+With some special ✨ for NixOS users.
 
 <div align="center">
   <img
@@ -31,7 +32,7 @@ USB/IP encapsulates "USB I/O messages" into TCP/IP payloads and transmits them b
 ### Why do I need USB/IP?
 
 My current use case is that this allows me to remotely mount my [USB key with a key file](https://tqdev.com/2022-luks-with-usb-unlock) or my
-_real_ [YubiKey 5 [series hardware key](https://www.yubico.com/de/store/#yubikey-5-series) from my laptop to my server to decrypt my storage pools after a reboot.
+_real_ [YubiKey 5 series hardware key](https://www.yubico.com/de/store/#yubikey-5-series) from my laptop to my server to decrypt my storage pools after a reboot.
 
 Others use it to remotely mount old Linux-supported printers.
 
@@ -42,7 +43,7 @@ If you have a different interesting use case, let me know!
 Good question! This repository contains two helpful components:
 - The actual `usbip_wrapper` tool
 - A [NixOS](https://nixos.org/) module that provides a simple entry point to set up the USB/IP host/client on a NixOS system with a secure auto-mount procedure.
-If you are a NixOS user, check out the [NixOS Module Section](#nixos-module)!
+If you are a NixOS user, check out the [NixOS Module section](#nixos-module)!
 
 The `usbip_wrapper` tool provides a more user- and scripting-friendly interface to the
 `usbip` program:
@@ -109,7 +110,7 @@ Options:
 
 ### USB-IDs
 
-To find the USB ID of the device you would like to mount, call `lsusb` and copy the hex code after `ID`` `XXXX:XXXX`.
+To find the USB ID of the device you would like to mount, call `lsusb` and copy the hex code after `ID` `XXXX:XXXX`.
 
 Or, the _official_ list of known USB IDs can be found at [linux-usb.org/usb.ids](http://www.linux-usb.org/usb.ids).
 

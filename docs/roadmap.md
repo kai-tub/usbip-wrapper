@@ -16,6 +16,8 @@ If the installation is as complex as it already is, then running `lsusb` once fo
 every different device/vendor is just as complex as looking up the official list
 and thinking about globbing...
 
+- Apply systemd hardening to ensure that the script can only modify strictly defined parts of the system
+
 ## Rejected ideas
 
 Things that I thought about adding to the roadmap but rejected because ...:
