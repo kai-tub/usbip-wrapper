@@ -1,64 +1,98 @@
 {
   inputs = {
     nixpkgs.url = "github:nixos/nixpkgs/nixos-22.11";
-    # flake-parts.url = "github:hercules-ci/flake-parts"
+    nix-filter.url = "github:numtide/nix-filter";
   };
-  outputs = { self, nixpkgs }:
+  outputs = { self, nixpkgs, nix-filter }:
     let
       pkgs = nixpkgs.legacyPackages.x86_64-linux;
+      # avoid nix-filter as name as it is otherwise an infinite recursion
+      filter = import nix-filter;
       system = "x86_64-linux";
+
+      sharedModule = {
+        virtualisation.graphics = false;
+      };
+      test_config = { };
     in
     rec {
-      nixosModules.default = import ./usbip_wrapper.nix self;
-      nixosModules.usbip_wrapper = import ./usbip_wrapper.nix self;
+      nixosModules.default = import ./nix/usbip_wrapper.nix self;
+      nixosModules.usbip_wrapper = import ./nix/usbip_wrapper.nix self;
 
-      # Define the NixOS test configuration
-      testConfig = {
-        # The VM configuration
-        config = {
-          inherit system;
-          # Include the package in the system configuration
-          imports = [ nixosModules.default ];
-          environment.systemPackages = [ packages."${system}".default ];
-        };
-      };
+      packages.x86_64-linux =
+        let
+          # eval = pkgs.lib.evalModules
+          #   {
+          #     # no idea how to fix the error
+          #     modules = [ nixosModules.default ];
+          #     check = false;
+          #   };
+          # eval = nixosModules.default;
+          # } // { _module.check = false; };
+          # eval._module.check = false;
+          # This is currently broken!
+          # https://bmcgee.ie/posts/2023/03/til-how-to-generate-nixos-module-docs/
+          # doc = pkgs.nixosOptionsDoc {
+          #   options = eval.options;
+          # };
+          # ASK:
+          # TODO: Figure out how to rewrite this as a test that I can import!
+          # I have no idea how to do it correctly. I am importing it as a function
+          # and then evaluating it and filtering it based on the name
+          # as I need to inject the package itself into the test
+          tests_f = import ./nix/tests.nix;
+        in
+        rec {
+          usbip_wrapper = pkgs.rustPlatform.buildRustPackage {
+            pname = "usbip-wrapper";
+            version = "v0.1.0";
 
-      # TODO: Understand how to run nixosTest!
-      # Define the NixOS test using the `nixosTest` function
-      # https://nix.dev/tutorials/integration-testing-using-virtual-machines
-      # https://github.com/NixOS/nixpkgs/blob/master/nixos/tests/login.nix
-      testResult = nixpkgs.nixosTest {
-        name = "my-test";
-        system = testConfig.system;
-        config = testConfig.config;
-        # extraDiskImages = [ nixpkgs.nixosImage { system = testConfig.system; } ];
-        # env = with testConfig; {
-        #   # Export the test configuration to the VM
-        #   testConfig = builtins.toJSON testConfig;
-        # };
-      };
+            src = filter {
+              root = ./.;
+              include = [
+                "src"
+                ./Cargo.lock
+                ./Cargo.toml
+              ];
+            };
 
-      packages.x86_64-linux = {
-        usbip_wrapper = pkgs.rustPlatform.buildRustPackage {
-          pname = "usbip-wrapper";
-          version = "v0.1.0";
+            # cargoSha256 = pkgs.lib.fakeSha256;
+            cargoSha256 = "sha256-35wXNIUg01RX4qNRSYF6PXooRzqRpAkRTGuXEJd6MCs=";
 
-          src = self;
-
-          # cargoSha256 = pkgs.lib.fakeSha256;
-          cargoSha256 = "sha256-35wXNIUg01RX4qNRSYF6PXooRzqRpAkRTGuXEJd6MCs=";
-
-          meta = with pkgs.lib; {
-            description = "A simple usbip wrapper";
+            meta = with pkgs.lib; {
+              description = "A simple usbip wrapper";
+            };
           };
+          default = packages."${system}".usbip_wrapper;
+
+          # d = pkgs.runCommand "options.md" { } ''
+          #   cat ${doc.optionsCommonMark} >> $out
+          # '';
+
+          # FUTURE: Ask somebody who is smart how to do this "correctly"
+          # Maybe this should be done as an 'actual' module as well?
+          # I cannot figure out how to do this via import/imports
+          clientUnitTest = pkgs.lib.getAttr "clientUnitTest" (tests_f {
+            inherit pkgs;
+            # inherit config;
+            usbip_module = nixosModules.default;
+            usbip_pkg = usbip_wrapper;
+          });
+          hostSelfTest = pkgs.lib.getAttr "hostSelfTest" (tests_f {
+            inherit pkgs;
+            # inherit config;
+            usbip_module = nixosModules.default;
+            usbip_pkg = usbip_wrapper;
+          });
+          integrationTest = pkgs.lib.getAttr "integrationTest" (tests_f {
+            inherit pkgs;
+            # inherit config;
+            usbip_module = nixosModules.default;
+            usbip_pkg = usbip_wrapper;
+          });
         };
-        default = packages.x86_64-linux.usbip_wrapper;
-      };
 
-      # chatgpt says:
-      # nixosModules.usbip_wrapper = { ... }: { systemd.packages = [] }
-
-      devShell.x86_64-linux =
+      devShells.x86_64-linux =
         pkgs.mkShell {
           nativeBuildInputs = with pkgs; [
             rustc
@@ -70,44 +104,27 @@
           ];
           USBIP_TCP_PORT = 5000;
         };
+
+      # flake check only ensure that the deriviations can be build and doesn't actually run them
+
+      # TODO:
+      # update readme
+
       nixosConfigurations =
         let
-          lib = nixpkgs.lib;
+          system = "x86_64-linux";
+          vm_conf = import ./nix/vm.nix {
+            inherit nixpkgs;
+            inherit pkgs;
+            inherit system;
+            usbip_module = nixosModules.default;
+            usbip_pkg = packages."${system}".usbip_wrapper;
+          };
         in
         {
-          vm = lib.makeOverridable lib.nixosSystem {
-            inherit system;
-            modules =
-              let
-                pkgs = import nixpkgs { inherit system; };
-              in
-              [
-                # import the usbip_wrapper modules
-                nixosModules.default
-                ({ pkgs, config, ... }: {
-                  system.stateVersion = "22.11";
-                  services.usbip_wrapper = {
-                    enable = true;
-                    port = 5000;
-                    usb_ids = [ "0627:0001" ];
-                  };
-                  # This should be configurable to test different kernel version interacting with each other
-                  # boot.kernelPackages = pkgs.linuxPackages_latest;
-                  boot.kernelPackages = pkgs.linuxPackages;
-                  # Test that the flake doesn't break the user-defined configuration
-                  boot.kernelModules = [ "zfs" ];
-                  boot.extraModulePackages = with config.boot.kernelPackages; [ zfs ];
-                  environment.sessionVariables = rec {
-                    USBIP_TCP_PORT = "${builtins.toString config.services.usbip_wrapper.port}";
-                    PATH = [ "${config.boot.kernelPackages.usbip}/bin" ];
-                  };
-                  environment.systemPackages = [
-                    pkgs.usbutils
-                    packages.x86_64-linux.default
-                  ];
-                })
-              ];
-          };
+          # only enable if required, as otherwise nix flake check fails to load this!
+          # vm = vm_conf.vm;
         };
+
     };
 }
