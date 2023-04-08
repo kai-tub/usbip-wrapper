@@ -1,14 +1,25 @@
 # USB/IP Wrapper
+
 A nice wrapper around the [USB/IP tool](https://usbip.sourceforge.net/).
 
 <div align="center">
   <img
-    src="./usbip_wrapper_logo.png"
+    src="./assets/usbip_wrapper_logo.png"
     alt="usbip-wrapper logo">
 </div>
 
+<!--toc:start-->
+- [USB/IP Wrapper](#usbip-wrapper)
+  - [USB/IP: TL;DR](#usbip-tldr)
+    - [Why do I need USB/IP?](#why-do-i-need-usbip)
+    - [Why should I look at this repository?](#why-should-i-look-at-this-repository)
+  - [Usage](#usage)
+    - [USB-IDs](#usb-ids)
+  - [NixOS Module](#nixos-module)
+  - [Testing](#testing)
+<!--toc:end-->
 
-## USB/IP TL;DR
+## USB/IP: TL;DR
 
 From the [USB/IP Project page](https://usbip.sourceforge.net/):
 > USB/IP Project aims to develop a general USB device sharing system over IP network.
@@ -19,11 +30,10 @@ USB/IP encapsulates "USB I/O messages" into TCP/IP payloads and transmits them b
 
 ### Why do I need USB/IP?
 
-My current use case is that this allows me to remotely mount my [USB key with a keyfile](https://tqdev.com/2022-luks-with-usb-unlock) or my
-_real_ [YubiKey 5 series hardware key](https://www.yubico.com/de/store/#yubikey-5-series)
-key from my laptop to my server to decrypt my storage pools after a reboot.
+My current use case is that this allows me to remotely mount my [USB key with a key file](https://tqdev.com/2022-luks-with-usb-unlock) or my
+_real_ [YubiKey 5 [series hardware key](https://www.yubico.com/de/store/#yubikey-5-series) from my laptop to my server to decrypt my storage pools after a reboot.
 
-Others use it to remotely mount old Linux supported printers.
+Others use it to remotely mount old Linux-supported printers.
 
 If you have a different interesting use case, let me know!
 
@@ -31,23 +41,22 @@ If you have a different interesting use case, let me know!
 
 Good question! This repository contains two helpful components:
 - The actual `usbip_wrapper` tool
-- A [NixOS](https://nixos.org/) module that provides a simple entry-point to
-set-up the USB/IP host/client on a NixOS system with a secure auto-mount procedure.
+- A [NixOS](https://nixos.org/) module that provides a simple entry point to set up the USB/IP host/client on a NixOS system with a secure auto-mount procedure.
 If you are a NixOS user, check out the [NixOS Module Section](#nixos-module)!
 
 The `usbip_wrapper` tool provides a more user- and scripting-friendly interface to the
 `usbip` program:
-- Supports to remotely mount multiple USB devices from the same manufacturer.
+- Supports remotely mounting multiple USB devices from the same manufacturer.
   - This is a limitation of the [binding tutorial from Arch Linux](https://wiki.archlinux.org/title/USB/IP#Tips_and_tricks)
-- May mount _all available_ devices from a host without having to explicitely list all USB ID's
-- May unmount _all locally_ mounted USB devices from USB/IP
+  - May mount _all available_ devices from a host without having to explicitly list all USB IDs
+  - May unmount _all locally_ mounted USB devices from USB/IP
 - Acts _idempotent_ and only returns non-zero status codes for _true_ errors
 - Gives more helpful error messages to make it easier to debug
 - Provides a unified interface with identical environment variables for the host and client application
 
 <!-- Idempotent: - If all desired remote USB devices have already been mounted then re-calling mount won't provide an error. -->
 
-If you only want to use USB/IP directly check out the [Arch-Linux usbip wiki entry](https://wiki.archlinux.org/title/USB/IP).
+If you only want to use USB/IP directly check out the [Arch-Linux USB/IP wiki entry](https://wiki.archlinux.org/title/USB/IP).
 
 ## Usage
 
@@ -55,7 +64,7 @@ Note: You still have to install the `usbip` package and the required kernel modu
 the host/client. See the [Arch Linux USB/IP documentation](https://wiki.archlinux.org/title/USB/IP)
 for some pointers. If you are using NixOS, see the [NixOS Module](#nixos-module) section!
 
-After adding adding the compiled binary to your `PATH` or after running `cargo install`
+After adding the compiled binary to your `PATH` or after running `cargo install`
 you can simply view the CLI documentation with `--help`:
 
 ```
@@ -100,13 +109,13 @@ Options:
 
 ### USB-IDs
 
-To find the USB-ID of the device you would like to mount, call `lsusb` and copy the hex-code after `ID` `XXXX:XXXX`.
+To find the USB ID of the device you would like to mount, call `lsusb` and copy the hex code after `ID`` `XXXX:XXXX`.
 
-Or, the _official_ list of known USB ID's can be found at [linux-usb.org/usb.ids](http://www.linux-usb.org/usb.ids).
+Or, the _official_ list of known USB IDs can be found at [linux-usb.org/usb.ids](http://www.linux-usb.org/usb.ids).
 
 For example, the hardware key manufacturer of the [YubiKey 5 Series](https://www.yubico.com/de/store/#yubikey-5-series),
 [yubico](https://www.yubico.com/), is listed as *Yubico.com* with the _vendor_ id 1050.
-For each of the registered products, there is a different unique _product_ ids, which look (at the time of writing) like:
+For each of the registered products, there are different unique _product_ ids, which look (at the time of writing) like this:
 
 ```
 1050  Yubico.com
@@ -122,14 +131,14 @@ For each of the registered products, there is a different unique _product_ ids, 
 
 The project also provides a NixOS module.
 NixOS is treated as a first-class citizen and makes it trivial to
-deploy a USB/IP host/client infrastructure in a secure manner with minimal
+deploy a USB/IP host/client infrastructure securely with minimal
 footprint and auto-mount capabilities.
 
-In short, importing the module this flake provides provides:
+In short, importing the module this flake provides:
 - `services.usbip_wrapper_client`
   - Creates a `systemd` Unit file that connects to a specified host and
   mounts the listed USB devices.
-  - Basis for further `systemd` customization/logic to load the unit file
+  - The basis for further `systemd` customization/logic to load the unit file
   as a dependency of a different one or chain multiple together with different
   possible hosts.
 - `services.usbip_wrapper_host`
@@ -138,17 +147,16 @@ In short, importing the module this flake provides provides:
   hosts the listed USB devices if available.
   - Usually does not require any further configuration
 
-The NixOS Module also ensures that the _correct_ usbip version is used, i.e.,
-the from the kernel version of the host, and loads the required kernel
+The NixOS Module also ensures that the _correct_ `usbip` version is used, i.e., from the kernel version of the host, and loads the required kernel
 _modules_ depending on which unit is activated.
 
-This means that from the viewpoint of a NixOS user all of the complexity
+This means that from the viewpoint of a NixOS user, all of the complexity
 associated with installing the `usbip` package, required _kernel modules_, and
 configuring a secure auto-mount pipeline is done automatically and one only
-needs to configure the desired behavior, showing the _real strength_ of NixOS :heart:.
+needs to configure the desired behavior, showing the _real strength_ of NixOS :heart: .
 
 For more information about the different configuration options, please see the
-source module file at [./nix_parts/usbip_wrapper.nix](./nix_parts/usbip_wrapper.nix).
+source module file at [./nix/usbip_wrapper.nix](./nix/usbip_wrapper.nix).
 A nicer auto-generated documentation is planned.
 For a detailed overview of the inner workings of the auto-mount `systemd` pipeline,
 please take a look at the [./docs/systemd_doc.md](./docs/systemd_doc.md).
@@ -165,13 +173,12 @@ configuration options work as expected, but it also ensures that the
 USB/IP package behaves as expected under different scenarios.
 
 The integration test suite contains one set-up where a cluster of 4
-virtual machines, 2 client and 2 hosts (one with the current stable
+virtual machines, 2 clients and 2 hosts (one with the current stable
 and one with the latest Linux kernel version), are spun up and each
 client/host pair connects to each other and mounts a virtual/emulated
 USB device.
-See the [./nix_parts/tests.nix](./nix_parts/test.nix) file for more details.
+See the [./nix/tests.nix](./nix/test.nix) file for more details.
 
 These tests can be run via:
 
 ```nix build -L .#<test-name>```
-

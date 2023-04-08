@@ -16,8 +16,8 @@
       test_config = { };
     in
     rec {
-      nixosModules.default = import ./nix_parts/usbip_wrapper.nix self;
-      nixosModules.usbip_wrapper = import ./nix_parts/usbip_wrapper.nix self;
+      nixosModules.default = import ./nix/usbip_wrapper.nix self;
+      nixosModules.usbip_wrapper = import ./nix/usbip_wrapper.nix self;
 
       packages.x86_64-linux =
         let
@@ -40,7 +40,7 @@
           # I have no idea how to do it correctly. I am importing it as a function
           # and then evaluating it and filtering it based on the name
           # as I need to inject the package itself into the test
-          tests_f = import ./nix_parts/tests.nix;
+          tests_f = import ./nix/tests.nix;
         in
         rec {
           usbip_wrapper = pkgs.rustPlatform.buildRustPackage {
@@ -113,7 +113,7 @@
       nixosConfigurations =
         let
           system = "x86_64-linux";
-          vm_conf = import ./nix_parts/vm.nix {
+          vm_conf = import ./nix/vm.nix {
             inherit nixpkgs;
             inherit pkgs;
             inherit system;
