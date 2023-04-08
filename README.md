@@ -1,7 +1,6 @@
 # USB/IP Wrapper
 
-A nice wrapper around the [USB/IP tool](https://usbip.sourceforge.net/).
-With some special [✨ for NixOS users](#nixos-module).
+A nice wrapper around the [USB/IP tool](https://usbip.sourceforge.net/) with some special [✨ for NixOS users](#nixos-module).
 
 <div align="center">
   <img
