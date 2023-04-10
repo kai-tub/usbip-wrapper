@@ -7,13 +7,8 @@
     let
       pkgs = nixpkgs.legacyPackages.x86_64-linux;
       # avoid nix-filter as name as it is otherwise an infinite recursion
-      filter = import nix-filter;
+      filter = nix-filter.lib;
       system = "x86_64-linux";
-
-      sharedModule = {
-        virtualisation.graphics = false;
-      };
-      test_config = { };
     in
     rec {
       nixosModules.default = import ./nix/usbip_wrapper.nix self;
@@ -59,7 +54,7 @@
             # cargoSha256 = pkgs.lib.fakeSha256;
             cargoSha256 = "sha256-35wXNIUg01RX4qNRSYF6PXooRzqRpAkRTGuXEJd6MCs=";
 
-            meta = with pkgs.lib; {
+            meta = {
               description = "A simple usbip wrapper";
             };
           };

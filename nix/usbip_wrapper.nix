@@ -51,7 +51,7 @@ in
           type = lib.types.attrsOf (lib.types.submodule {
             options = {
               enable = lib.mkEnableOption "Configure a usbip_wrapper client instance.";
-              description = "An example opti";
+              description = "The name of the instance will be used to generate the name of the systemd file called: usbip_mounter_<instance_value>";
 
               inherit package;
               usb_ids = mk_opt_usb_ids "mounted";
@@ -117,10 +117,7 @@ in
           lib.mapAttrs'
             (name: instance_value:
               {
-                # This may be a bit misleading. I have to make clear that
-                # i only build the name given the host!
-                # This would again speak for using a systemd template!
-                name = "usbip_mounter_${instance_value.host}";
+                name = "usbip_mounter_${name}";
                 value = {
                   description = "Template for Remote USB mounter via usbip";
                   wants = [ "network-online.target" ];
