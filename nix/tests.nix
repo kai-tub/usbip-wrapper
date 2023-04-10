@@ -34,6 +34,7 @@ in
   # Just boot and verify that the systemctl unit exists!
   clientUnitTest =
     let
+      instance = "test_instance";
       host = "remote_host";
     in
     pkgs.nixosTest ({
@@ -41,8 +42,10 @@ in
       nodes = {
         client = { config, pkgs, ... }: {
           imports = [ common_module ];
-          services.usbip_wrapper_client.instances.test_instance = base_instance // {
-            inherit host;
+          services.usbip_wrapper_client.instances = {
+            "${instance}" = base_instance // {
+              inherit host;
+            };
           };
         };
       };
@@ -50,7 +53,7 @@ in
       # test that client systemctl file is correctly created
       testScript = ''
         start_all()
-        _, out = client.systemctl("is-enabled usbip_mounter_${host}")
+        _, out = client.systemctl("is-enabled usbip_mounter_${instance}")
         print(out)
               
         # linked means that is exists but isn't depended by anyone
@@ -132,7 +135,7 @@ in
               environment.sessionVariables = {
                 PATH = [ "${boot.kernelPackages.usbip}/bin" ];
               };
-              # create systemd unit wi
+              # create systemd unit with the instance-name = host-name
               services.usbip_wrapper_client.instances.hoster_stable = base_instance // { host = "hoster_stable"; };
               services.usbip_wrapper_client.instances.hoster_latest = base_instance // { host = "hoster_latest"; };
             };
@@ -146,11 +149,11 @@ in
               services.usbip_wrapper_client.instances.hoster_stable = base_instance // { host = "hoster_stable"; };
               services.usbip_wrapper_client.instances.hoster_latest = base_instance // { host = "hoster_latest"; };
             };
-            hoster_stable = { config, pkgs, ... }: rec {
+            hoster_stable = { config, pkgs, ... }: {
               imports = [ hoster_base ];
               boot.kernelPackages = pkgs.linuxPackages;
             };
-            hoster_latest = { config, pkgs, ... }: rec {
+            hoster_latest = { config, pkgs, ... }: {
               imports = [ hoster_base ];
               boot.kernelPackages = pkgs.linuxPackages_latest;
             };
