@@ -1,11 +1,13 @@
 {
   inputs = {
     nixpkgs.url = "github:nixos/nixpkgs/nixos-22.11";
+    nixpkgs-unstable.url = "github:nixos/nixpkgs/nixos-unstable";
     nix-filter.url = "github:numtide/nix-filter";
   };
-  outputs = { self, nixpkgs, nix-filter }:
+  outputs = { self, nixpkgs, nix-filter, nixpkgs-unstable, }:
     let
       pkgs = nixpkgs.legacyPackages.x86_64-linux;
+      pkgs-unstable = nixpkgs-unstable.legacyPackages.x86_64-linux;
       # avoid nix-filter as name as it is otherwise an infinite recursion
       filter = nix-filter.lib;
       system = "x86_64-linux";
@@ -58,6 +60,15 @@
               description = "A simple usbip wrapper";
             };
           };
+
+          usbip_wrapper_nu = pkgs.runCommandLocal "usbip-wrapper.nu"  {
+            script = ./src/usbip_wrapper.nu;
+            nativeBuildInputs = [ pkgs.makeWrapper ];
+          } ''
+            makeWrapper $script $out/bin/usbip_wrapper.nu \
+              --prefix PATH : ${pkgs.lib.makeBinPath [ pkgs-unstable.nushell ] }
+          '';
+          
           default = packages."${system}".usbip_wrapper;
 
           # d = pkgs.runCommand "options.md" { } ''
