@@ -1,6 +1,6 @@
 # USB/IP Wrapper
 
-A nice wrapper around the [USB/IP tool](https://usbip.sourceforge.net/) with some special [✨ for NixOS users](#nixos-module).
+A nice nushell-based wrapper around the [USB/IP tool](https://usbip.sourceforge.net/) with some special [✨ for NixOS users](#nixos-module).
 
 <div align="center">
   <img
@@ -40,11 +40,11 @@ If you have a different interesting use case, let me know!
 ### Why should I look at this repository?
 
 Good question! This repository contains two helpful components:
-- The actual `usbip_wrapper` tool
+- The actual `usbip-wrapper` tool
 - A [NixOS](https://nixos.org/) module that provides a simple entry point to set up the USB/IP host/client on a NixOS system with a secure auto-mount procedure.
 If you are a NixOS user, check out the [NixOS Module section](#nixos-module)!
 
-The `usbip_wrapper` tool provides a more user- and scripting-friendly interface to the
+The `usbip-wrapper` tool provides a more user- and scripting-friendly interface to the
 `usbip` program:
 - Supports remotely mounting multiple USB devices from the same manufacturer.
   - This is a limitation of the [binding tutorial from Arch Linux](https://wiki.archlinux.org/title/USB/IP#Tips_and_tricks)
@@ -64,48 +64,10 @@ Note: You still have to install the `usbip` package and the required kernel modu
 the host/client. See the [Arch Linux USB/IP documentation](https://wiki.archlinux.org/title/USB/IP)
 for some pointers. If you are using NixOS, see the [NixOS Module](#nixos-module) section!
 
-After adding the compiled binary to your `PATH` or after running `cargo install`
-you can simply view the CLI documentation with `--help`:
-
-```
-Simple program to bind/unbind USB devices via USBIP.
-  The script is idempotent and will return non-zero status-codes
-  only for _true_ errors.
-  In contrast to `usbip` it won't raise an error if the device
-  is already bound/unbounded and the command is repeated.
-  The program will handle multiple USB devices with the same VendorID
-  gracefully and will bind/unbind all matching devices.
-  This happens frequently when multiple Hardware keys from the same vendor
-  are plugged in.
-  It also accepts multiple VendorIDs and will only apply it to those that
-  are present.
-
-Usage: usbip_wrapper <COMMAND>
-
-Commands:
-  host              Bind USB device
-  unhost            Unbind USB device If unhosted while remote is still connected, it seems
-                        like it will also be disconnected from the client without any issues
-  start-usb-hoster  Start usbip daemon via `usbipd`
-  list-hostable     List all devices that can be hosted, i.e. all USB devices that are
-                        connected locally
-  list-mountable    List all devices that can be mounted from an usbip host. Defaults to
-                        `localhost` which allows to quickly debug if previous mounted usb
-                        devices were attached correctly. For _real_ use, please overwrite the
-                        `host` value to the external usbip host/server
-  mount-remote      Mount devices from an usbip host
-  unmount-remote    Unmount remote device Required (!) to be able to re-mount the USB
-                        device again and might cause problems if not done. Especially during
-                        restarts for example If usbip port is not executed with `root`
-                        priveliges, it will still work, but the host will be called `unknown
-                        host, remote port and remote busid` but it will still list the used
-                        port and the usbid
-  help              Print this message or the help of the given subcommand(s)
-
-Options:
-  -h, --help     Print help
-  -V, --version  Print version
-```
+For a _manual_ installation, one needs to add/`use` the [nushell script](src/usbip_wrapper.nu)
+path to `config.nu` (update via `config nu`) and add `use <PATH>/usbip_wrapper.nu *`.
+Then the following command will auto-complete and show all available commands with
+help message: `usbip-wrapper <TAB><TAB>`
 
 ### USB-IDs
 
@@ -182,3 +144,16 @@ See the [./nix/tests.nix](./nix/test.nix) file for more details.
 These tests can be run via:
 
 ```nix build -L .#<test-name>```
+
+## Nushell?
+
+The previous version was implemented in Rust but I rewrote the application
+as a [`nushell`](https://www.nushell.sh/) script.
+At the time of writing (v0.79), nushell is mature enough to write some
+medium sized scripts but there are a few hurdles when it is used as an _application_.
+In the NixOS related code, there are quite a few work-arounds to hide the limitation
+but all-in-all nushell seems to be a perfect fit scripts!
+
+I am keeping both implementations in the repository, to also provide a comparison between
+both languages for medium-sized scripts.
+

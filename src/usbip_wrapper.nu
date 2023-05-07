@@ -303,5 +303,5 @@ export def "usbip-wrapper mount-remote" [
 }
 
 export def main [] {
-	usbip-wrapper list hostable
+	print "Import the file with `use` and check the auto-complete of `usbip-wrapper` for help :)"
 }
