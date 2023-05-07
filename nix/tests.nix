@@ -1,9 +1,12 @@
-{ pkgs, usbip_module, usbip_pkg, ... }:
+# /bin/usbip-wrapper is not available!
+flake: { pkgs, usbip_module, usbip_pkg, ... }:
 # Define the NixOS test using the `nixosTest` function
 # https://nix.dev/tutorials/integration-testing-using-virtual-machines
 # https://github.com/NixOS/nixpkgs/blob/master/nixos/tests/login.nix
+# Required to use custom Systemd Units for testing
+# as NixOS VM's have trouble with execute that takes over stdout
+# and does some job-control, see nushell notes markdown file!
 let
-  lib = pkgs.lib;
   port = 5000;
   # This is a QEMU created USB device and is available
   # on all QEMU instances!
@@ -16,6 +19,7 @@ let
     ];
 
     networking.firewall.allowedTCPPorts = [ port ];
+    # networking.firewall.enable = false;
     virtualisation.graphics = false;
     environment.systemPackages = [
       # pkgs.usbutils 
@@ -27,6 +31,7 @@ let
     inherit port;
     usb_ids = [ fake_usb_id ];
   };
+  nu_mode = flake.packages.x86_64-linux.usbip_wrapper_nu == usbip_pkg;
 in
 {
   # Quickly verify that the systemd submodule interface works as expected
@@ -79,23 +84,39 @@ in
               environment.sessionVariables = {
                 PATH = [ "${boot.kernelPackages.usbip}/bin" ];
               };
+              systemd.services."usbip_wrapper_list_mountable" = {
+                serviceConfig = {
+                  Type = "oneshot";
+                  # Adding to PATH doesn't seem to work
+                  # ${config.services.usbip_wrapper_host.package}/bin/usbip-wrapper-executor list mountable --tcp-port=${builtins.toString port} localhost
+                  ExecStart = if nu_mode then ''
+                    ${config.services.usbip_wrapper_host.package}/bin/usbip-wrapper-executor list mountable --tcp-port=${builtins.toString port} localhost | to text
+                  '' else ''
+                    ${config.services.usbip_wrapper_host.package}/bin/usbip_wrapper list-mountable --host=localhost --tcp-port=${builtins.toString port}
+                  '';
+                };
+                path = [ 
+                  "${config.boot.kernelPackages.usbip}"
+                  # "${config.services.usbip_wrapper_host.package}"
+                ];
+              };
             };
           };
 
         skipLint = false;
 
-        testScript = ''
+        testScript =
+         ''
           from time import sleep
-
-          port = ${builtins.toString port}
 
           start_all()
 
           hoster_stable.wait_for_unit("multi-user.target")
           # Run twice to ensure that timer can be re-used/restarted
           for _ in range(2):
-            status, stdout = hoster_stable.execute(f"usbip_wrapper list-mountable --host=localhost --tcp-port={port}", timeout=10)
-            assert "${fake_usb_id}" in stdout
+            hoster_stable.systemctl("start usbip_wrapper_list_mountable")
+            out = hoster_stable.execute("journalctl -u usbip_wrapper_list_mountable --since=-2sec")[1]
+            assert "${fake_usb_id}" in out
             with subtest("test keep alive status"):
               _, usbip_status = hoster_stable.systemctl("is-active usbip_server")
               assert usbip_status.strip() == "active", "Directly after accessing port the server should be active for a pre-defined time."
@@ -126,28 +147,69 @@ in
             client_base = {
               imports = [ common_module ];
             };
+            usbip_wrapper_list_mountable = config: {
+              serviceConfig = {
+                Type = "oneshot";
+                ExecStart = if nu_mode then ''
+                  ${config.services.usbip_wrapper_host.package}/bin/usbip-wrapper-executor list mountable --tcp-port=${builtins.toString port} %I | to text
+                '' else ''
+                  ${config.services.usbip_wrapper_host.package}/bin/usbip_wrapper list-mountable --host %I --tcp-port=${builtins.toString port}
+                '';
+              };
+              path = [ 
+                "${config.boot.kernelPackages.usbip}"
+              ];
+            };
+            usbip_wrapper_mount = config: {
+              serviceConfig = {
+                Type = "oneshot";
+                ExecStart = if nu_mode then ''
+                  ${config.services.usbip_wrapper_host.package}/bin/usbip-wrapper-executor mount-remote --tcp-port=${builtins.toString port} %I
+                '' else ''
+                  ${config.services.usbip_wrapper_host.package}/bin/usbip_wrapper mount-remote --host %I --tcp-port=${builtins.toString port}
+                '';
+              };
+              path = [ 
+                "${config.boot.kernelPackages.usbip}"
+              ];
+            };
+            usbip_wrapper_unmount_remote = config: {
+              serviceConfig = {
+                Type = "oneshot";
+                ExecStart = if nu_mode then ''
+                  ${config.services.usbip_wrapper_host.package}/bin/usbip-wrapper-executor unmount-remote | to text
+                '' else ''
+                  ${config.services.usbip_wrapper_host.package}/bin/usbip_wrapper unmount-remote
+                '';
+              };
+              path = [ 
+                "${config.boot.kernelPackages.usbip}"
+              ];
+            };
           in
           {
-            client_latest = { config, pkgs, ... }: rec {
+            client_latest = { config, pkgs, ... }: {
               imports = [ client_base ];
               boot.kernelPackages = pkgs.linuxPackages_latest;
-              # only clients manually execute usbip code
-              environment.sessionVariables = {
-                PATH = [ "${boot.kernelPackages.usbip}/bin" ];
+              services.usbip_wrapper_client.instances.hoster_stable = base_instance // {
+                host = "hoster_stable";
               };
-              # create systemd unit with the instance-name = host-name
-              services.usbip_wrapper_client.instances.hoster_stable = base_instance // { host = "hoster_stable"; };
-              services.usbip_wrapper_client.instances.hoster_latest = base_instance // { host = "hoster_latest"; };
+              services.usbip_wrapper_client.instances.hoster_latest = base_instance // {
+                host = "hoster_latest";
+              };
+              systemd.services."usbip_wrapper_list_mountable@" = usbip_wrapper_list_mountable config; 
+              systemd.services."usbip_wrapper_mount@" = usbip_wrapper_mount config; 
+              systemd.services.usbip_wrapper_unmount_remote = usbip_wrapper_unmount_remote config;
             };
-            client_stable = { config, pkgs, ... }: rec {
+            client_stable = { config, pkgs, ... }: {
               imports = [ client_base ];
               boot.kernelPackages = pkgs.linuxPackages;
-              # only clients manually execute usbip code
-              environment.sessionVariables = {
-                PATH = [ "${boot.kernelPackages.usbip}/bin" ];
-              };
               services.usbip_wrapper_client.instances.hoster_stable = base_instance // { host = "hoster_stable"; };
               services.usbip_wrapper_client.instances.hoster_latest = base_instance // { host = "hoster_latest"; };
+
+              systemd.services."usbip_wrapper_list_mountable@" = usbip_wrapper_list_mountable config; 
+              systemd.services."usbip_wrapper_mount@" = usbip_wrapper_mount config; 
+              systemd.services.usbip_wrapper_unmount_remote = usbip_wrapper_unmount_remote config;
             };
             hoster_stable = { config, pkgs, ... }: {
               imports = [ hoster_base ];
@@ -164,8 +226,6 @@ in
         testScript = ''
           from time import sleep
 
-          port = ${builtins.toString port}
-         
           start_all()
 
           hoster_latest.wait_for_unit("multi-user.target")
@@ -176,19 +236,24 @@ in
               print(client.succeed("uname -a"))
               client.wait_for_unit("multi-user.target")
               with subtest(f"client can discover {host_name}"):
-                status, stdout = client.execute(f"usbip_wrapper list-mountable --host={host_name} --tcp-port=${builtins.toString port}", timeout=10)
-                assert "${fake_usb_id}" in stdout
-                client.succeed(f"usbip_wrapper mount-remote --host={host_name} --tcp-port={port}", timeout=3)
+                client.systemctl(f"start usbip_wrapper_list_mountable@{host_name}")
+                out = client.execute(f"journalctl -u usbip_wrapper_list_mountable@{host_name} --since=-0.2sec")[1]
+                assert "${fake_usb_id}" in out
+                client.systemctl(f"start usbip_wrapper_mount@{host_name}")
+                result = client.systemctl(f"show -p Result --value usbip_wrapper_mount@{host_name}")[1].strip()
+                assert result == "success", f"Non-zero exit code after trying to mount: {result}" 
                 # it takes a bit to propagate the mounting to the local USPIP interface as some time is spent mounting it
                 sleep(.5)
-                client.succeed("usbip_wrapper unmount-remote", timeout=3)
+                client.systemctl("start usbip_wrapper_unmount_remote")
+                result = client.systemctl(f"show -p Result --value usbip_wrapper_unmount_remote@{host_name}")[1].strip()
+                assert result == "success", "Non-zero exit code after trying to unmount: {result}" 
                 sleep(.5)
               with subtest("test client systemctl instances"):
-                a, b = client.systemctl(f"start usbip_mounter_{host_name}")
-                print(a)
-                print(b)
+                _, out = client.systemctl(f"start usbip_mounter_{host_name}")
                 sleep(.5)
-                client.succeed("usbip_wrapper unmount-remote", timeout=3)
+                client.systemctl("start usbip_wrapper_unmount_remote")
+                result = client.systemctl(f"show -p Result --value usbip_wrapper_unmount_remote@{host_name}")[1].strip()
+                assert result == "success", "Non-zero exit code after trying to unmount: {result}" 
                 sleep(.5)
 
           client_test(client_latest, "hoster_latest")

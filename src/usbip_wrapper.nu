@@ -194,6 +194,7 @@ export def "usbip-wrapper start-usb-hoster" [
 }
 
 # Unmount a remote-usb from the local server
+# if none are given, all are unmounted.
 export def "usbip-wrapper unmount-remote" [
 	...usbids: string
 ] {
@@ -252,7 +253,7 @@ export def "usbip-wrapper mount-remote" [
 	host: string
 	...usbids: string
 ] {
-	let mountable = (usbip-wrapper list mountable $host);
+	let mountable = (usbip-wrapper list mountable --tcp-port $tcp_port $host);
 	let usbids_span = (metadata $usbids).span
 
 	let to_mount = match ($usbids | is-empty) {
@@ -302,5 +303,5 @@ export def "usbip-wrapper mount-remote" [
 }
 
 export def main [] {
-	echo "Calling main!"
+	usbip-wrapper list hostable
 }

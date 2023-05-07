@@ -1,9 +1,10 @@
 # should differ between client/server mode
-flake: { config, lib, pkgs, ... }:
+flake: nu_mode: { config, lib, pkgs, ... }:
 let
   cfg_host = config.services.usbip_wrapper_host;
   cfg_client = config.services.usbip_wrapper_client;
-  usbip_wrapper = flake.packages.x86_64-linux.usbip_wrapper;
+  # there is probably a smarter way to do this...
+  usbip_wrapper = if nu_mode then flake.packages.x86_64-linux.usbip_wrapper_nu else flake.packages.x86_64-liux.usbip_wrapper;
   port_internal = "5555";
 in
 {
@@ -125,7 +126,12 @@ in
 
                   serviceConfig = {
                     Type = "oneshot";
-                    ExecStart = ''
+                    ExecStart = if nu_mode then ''
+                      ${cfg_host.package}/bin/usbip-wrapper-executor mount-remote \
+                        --tcp-port="${builtins.toString instance_value.port}" \
+                        "${instance_value.host}" \
+                        ${builtins.concatStringsSep " " instance_value.usb_ids}
+                    '' else ''
                       ${cfg_host.package}/bin/usbip_wrapper mount-remote \
                         --host="${instance_value.host}" \
                         --tcp-port="${builtins.toString instance_value.port}" \
@@ -183,7 +189,11 @@ in
         conflicts = [ "usbip_host_timeout.service" ];
         serviceConfig = {
           Type = "simple";
-          ExecStart = ''
+          ExecStart = if nu_mode then ''
+            ${cfg_host.package}/bin/usbip-wrapper-executor \
+              start-usb-hoster \
+              --tcp-port=${port_internal}
+          '' else ''
             ${cfg_host.package}/bin/usbip_wrapper \
               start-usb-hoster \
               --tcp-port=${port_internal}
@@ -228,7 +238,11 @@ in
         bindsTo = [ "usbip_server.service" ];
         serviceConfig = {
           Type = "oneshot";
-          ExecStart = ''
+          ExecStart = if nu_mode then ''
+            ${cfg_host.package}/bin/usbip-wrapper-executor host \
+              --tcp-port=${port_internal} \
+              ${builtins.concatStringsSep " " cfg_host.usb_ids}
+          '' else ''
             ${cfg_host.package}/bin/usbip_wrapper host \
               --tcp-port=${port_internal} \
               -- ${builtins.concatStringsSep " " cfg_host.usb_ids}
@@ -258,8 +272,6 @@ in
         unitConfig = {
           # make the services "findable" for each other
           # but not other local services
-          # TODO: Make sure this actually works and if the other ones
-          # also need the same configuration!
           JoinsNamespaceOf = [ "usbip_server.service" "usbip_hoster.service" ];
         };
         serviceConfig = {

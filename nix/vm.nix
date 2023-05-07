@@ -39,7 +39,7 @@ in
           # Test that the flake doesn't break the user-defined configuration
           boot.kernelModules = [ "zfs" ];
           boot.extraModulePackages = with config.boot.kernelPackages; [ zfs ];
-          environment.sessionVariables = rec {
+          environment.sessionVariables = {
             USBIP_TCP_PORT = "${builtins.toString port}";
             PATH = [ "${config.boot.kernelPackages.usbip}/bin" ];
           };
@@ -49,6 +49,14 @@ in
             pkgs.socat
             pkgs.ripgrep
           ];
+          services.usbip_wrapper_client.instances = {
+            "test_instance" = base_instance // {
+              host = "localhost";
+            };
+          };
+          services.usbip_wrapper_host = base_instance // {
+            timeout = "10s";
+          };
         })
       ];
   };
