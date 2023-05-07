@@ -4,7 +4,7 @@ let
   cfg_host = config.services.usbip_wrapper_host;
   cfg_client = config.services.usbip_wrapper_client;
   # there is probably a smarter way to do this...
-  usbip_wrapper = if nu_mode then flake.packages.x86_64-linux.usbip_wrapper_nu else flake.packages.x86_64-liux.usbip_wrapper;
+  usbip_wrapper = if nu_mode then flake.packages.x86_64-linux.usbip_wrapper_nu else flake.packages.x86_64-linuux.usbip_wrapper;
   port_internal = "5555";
 in
 {
