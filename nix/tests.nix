@@ -181,7 +181,7 @@ in
                 '' else ''
                   ${config.services.usbip_wrapper_host.package}/bin/usbip_wrapper unmount-remote
                 '';
-                ExecStartPost = ''sleep 1s'';
+                ExecStartPost = ''${pkgs.coreutils}/bin/sleep 1s'';
               };
               path = [ 
                 "${config.boot.kernelPackages.usbip}"
@@ -230,6 +230,18 @@ in
           hoster_latest.wait_for_unit("multi-user.target")
           hoster_stable.wait_for_unit("multi-user.target")
 
+          def systemctl_start_and_exit_check(dev, unit_name, error_msg):
+            """
+            Start the given unit_name on the host called dev.
+            Check if the unit exists and if the command succeded.
+            Will only process the last event
+            """
+            dev.systemctl(f"start {unit_name}")
+            load_state = dev.systemctl(f"show -p LoadState --value {unit_name}")[1].splitlines()[-1]
+            assert "loaded" == load_state, f"Unit error: {load_state} Maybe typo?\n"
+            exit_code = dev.systemctl(f"show -p Result --value {unit_name}")[1].splitlines()[-1]
+            assert "success" == exit_code, f"{error_msg}\nexit-code: {exit_code}"
+
           def client_test(client, host_name):
             with subtest("test client access"):
               print(client.succeed("uname -a"))
@@ -237,19 +249,21 @@ in
               with subtest(f"client can discover {host_name}"):
                 client.systemctl(f"start usbip_wrapper_list_mountable@{host_name}")
                 out = client.execute(f"journalctl -u usbip_wrapper_list_mountable@{host_name} --since=-0.2sec")[1]
-                assert "${fake_usb_id}" in out
-                client.systemctl(f"start usbip_wrapper_mount@{host_name}")
-                result = client.systemctl(f"show -p Result --value usbip_wrapper_mount@{host_name}")[1].strip()
-                assert result == "success", f"Non-zero exit code after trying to mount: {result}" 
-                # it takes a bit to propagate the mounting to the local USPIP interface as some time is spent mounting it
-                client.systemctl("start usbip_wrapper_unmount_remote")
-                result = client.systemctl(f"show -p Result --value usbip_wrapper_unmount_remote@{host_name}")[1].strip()
-                assert result == "success", "Non-zero exit code after trying to unmount: {result}" 
+                assert "${fake_usb_id}" in out, "USBID not found"
+                systemctl_start_and_exit_check(client, f"usbip_wrapper_mount@{host_name}", "Failed to mount")
+                # result = client.systemctl(f"show -p Result --value usbip_wrapper_mount@{host_name}")[1].strip()
+                # assert result == "success", f"Non-zero exit code after trying to mount: {result}" 
+                systemctl_start_and_exit_check(client, "usbip_wrapper_unmount_remote", "Failed to unmount")
+                # client.systemctl("start usbip_wrapper_unmount_remote")
+                # result = client.systemctl(f"show -p Result --value usbip_wrapper_unmount_remote@{host_name}")[1].strip()
+                # assert result == "success", "Non-zero exit code after trying to unmount: {result}" 
               with subtest("test client systemctl instances"):
-                #_, out = client.systemctl(f"start usbip_mounter_{host_name}")
-                client.systemctl("start usbip_wrapper_unmount_remote")
-                result = client.systemctl(f"show -p Result --value usbip_wrapper_unmount_remote@{host_name}")[1].strip()
-                assert result == "success", "Non-zero exit code after trying to unmount: {result}" 
+                systemctl_start_and_exit_check(client, f"start usbip_mounter_{host_name}", "Mouting via client systemctl failed")
+                # _, out = client.systemctl(f"start usbip_mounter_{host_name}")
+                systemctl_start_and_exit_check(client, "usbip_wrapper_unmount_remote", "Failed to unmount")
+                # client.systemctl("start usbip_wrapper_unmount_remote")
+                # result = client.systemctl(f"show -p Result --value usbip_wrapper_unmount_remote@{host_name}")[1].strip()
+                # assert result == "success", "Non-zero exit code after trying to unmount: {result}" 
 
           client_test(client_latest, "hoster_latest")
           client_test(client_latest, "hoster_stable")

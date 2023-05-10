@@ -138,7 +138,7 @@ in
                         -- ${builtins.concatStringsSep " " instance_value.usb_ids}
                     '';
                     # sleep is required to ensure that USB device is fully mounted
-                    ExecStartPost = ''sleep 1s'';
+                    ExecStartPost = ''${pkgs.coreutils}/bin/sleep 1s'';
                   };
                   path = [ "${config.boot.kernelPackages.usbip}" ];
                 };
