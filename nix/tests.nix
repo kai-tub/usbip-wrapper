@@ -181,6 +181,7 @@ in
                 '' else ''
                   ${config.services.usbip_wrapper_host.package}/bin/usbip_wrapper unmount-remote
                 '';
+                ExecStartPost = ''sleep 1s'';
               };
               path = [ 
                 "${config.boot.kernelPackages.usbip}"
@@ -224,8 +225,6 @@ in
         skipLint = false;
 
         testScript = ''
-          from time import sleep
-
           start_all()
 
           hoster_latest.wait_for_unit("multi-user.target")
@@ -243,18 +242,14 @@ in
                 result = client.systemctl(f"show -p Result --value usbip_wrapper_mount@{host_name}")[1].strip()
                 assert result == "success", f"Non-zero exit code after trying to mount: {result}" 
                 # it takes a bit to propagate the mounting to the local USPIP interface as some time is spent mounting it
-                sleep(.5)
                 client.systemctl("start usbip_wrapper_unmount_remote")
                 result = client.systemctl(f"show -p Result --value usbip_wrapper_unmount_remote@{host_name}")[1].strip()
                 assert result == "success", "Non-zero exit code after trying to unmount: {result}" 
-                sleep(.5)
               with subtest("test client systemctl instances"):
-                _, out = client.systemctl(f"start usbip_mounter_{host_name}")
-                sleep(.5)
+                #_, out = client.systemctl(f"start usbip_mounter_{host_name}")
                 client.systemctl("start usbip_wrapper_unmount_remote")
                 result = client.systemctl(f"show -p Result --value usbip_wrapper_unmount_remote@{host_name}")[1].strip()
                 assert result == "success", "Non-zero exit code after trying to unmount: {result}" 
-                sleep(.5)
 
           client_test(client_latest, "hoster_latest")
           client_test(client_latest, "hoster_stable")
