@@ -251,19 +251,16 @@ in
                 out = client.execute(f"journalctl -u usbip_wrapper_list_mountable@{host_name} --since=-0.2sec")[1]
                 assert "${fake_usb_id}" in out, "USBID not found"
                 systemctl_start_and_exit_check(client, f"usbip_wrapper_mount@{host_name}", "Failed to mount")
-                # result = client.systemctl(f"show -p Result --value usbip_wrapper_mount@{host_name}")[1].strip()
-                # assert result == "success", f"Non-zero exit code after trying to mount: {result}" 
                 systemctl_start_and_exit_check(client, "usbip_wrapper_unmount_remote", "Failed to unmount")
-                # client.systemctl("start usbip_wrapper_unmount_remote")
-                # result = client.systemctl(f"show -p Result --value usbip_wrapper_unmount_remote@{host_name}")[1].strip()
-                # assert result == "success", "Non-zero exit code after trying to unmount: {result}" 
               with subtest("test client systemctl instances"):
                 systemctl_start_and_exit_check(client, f"start usbip_mounter_{host_name}", "Mouting via client systemctl failed")
-                # _, out = client.systemctl(f"start usbip_mounter_{host_name}")
                 systemctl_start_and_exit_check(client, "usbip_wrapper_unmount_remote", "Failed to unmount")
-                # client.systemctl("start usbip_wrapper_unmount_remote")
-                # result = client.systemctl(f"show -p Result --value usbip_wrapper_unmount_remote@{host_name}")[1].strip()
-                # assert result == "success", "Non-zero exit code after trying to unmount: {result}" 
+              with subtest("double mount"):
+                # ensure that with an explicit USBID the unit won't error out if
+                # the device was already locally mounted
+                systemctl_start_and_exit_check(client, f"start usbip_mounter_{host_name}", "Mouting via client systemctl failed")
+                systemctl_start_and_exit_check(client, f"start usbip_mounter_{host_name}", "Mouting via client systemctl failed")
+                systemctl_start_and_exit_check(client, "usbip_wrapper_unmount_remote", "Failed to unmount")
 
           client_test(client_latest, "hoster_latest")
           client_test(client_latest, "hoster_stable")

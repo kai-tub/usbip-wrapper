@@ -248,6 +248,9 @@ export def "usbip-wrapper unmount-remote" [
 
 # Mount remote USB devices via usbip by providing the usbids of the target devices
 # If none are given, mount all available devices
+# If one or more are given, it won't raise an error if a USB device with a matching USBID
+# was already mounted previously and now none are available on the remote host.
+# This makes it safe to call the function multiple times even if the USB device was already mounted.
 export def "usbip-wrapper mount-remote" [
 	--tcp-port: int = 8324
 	host: string
@@ -255,25 +258,31 @@ export def "usbip-wrapper mount-remote" [
 ] {
 	let mountable = (usbip-wrapper list mountable --tcp-port $tcp_port $host);
 	let usbids_span = (metadata $usbids).span
+	let usbids_table = ($usbids | parse usbid)
 
 	let to_mount = match ($usbids | is-empty) {
 		true => { $mountable },
 		false => {
-			($mountable | join ($usbids | parse usbid) 'usbid')
+			($mountable | join $usbids_table 'usbid')
 		}
 	}
 
 	if ($to_mount.usbid | is-empty) {
-		log error $"Zero matching usbid\(s\) found for ($usbids)"
-    error make {
-        msg: 'No matching usbid(s) found!',
-        label: {
-            text: $"None of these matched ($to_mount.usbid)",
-            start: $usbids_span.start,
-            end: $usbids_span.end
-        }
-    }
-		exit -1
+		if (usbip-wrapper list unmountable | join $usbids_table 'usbid' | is-empty) {
+			log error $"Zero matching usbid\(s\) found for ($usbids)"
+	    error make {
+	        msg: 'No matching usbid(s) found!',
+	        label: {
+	            text: $"None of these matched ($to_mount.usbid)",
+	            start: $usbids_span.start,
+	            end: $usbids_span.end
+	        }
+	    }
+			exit -1
+		} else {
+			log info $"Given USB-ID\(s\) ($usbids) is/are already mounted and no new ones were found on remote. Skipping."
+			return
+		}
 	}
 	let missed_usbids = ($usbids | filter {|usbid| $usbid not-in $to_mount.usbid})
 	if ($missed_usbids | length) > 0 {
