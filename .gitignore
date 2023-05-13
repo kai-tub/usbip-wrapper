@@ -2,4 +2,5 @@
 /target
 /result
 *.qcow2
+*.xcf
 /drafts

@@ -4,7 +4,7 @@ A nice nushell-based wrapper around the [USB/IP tool](https://usbip.sourceforge.
 
 <div align="center">
   <img
-    src="./assets/usbip_wrapper_logo.png"
+    src="./assets/usbip_wrapper_logo_nobackground.png"
     alt="usbip-wrapper logo">
 </div>
 
