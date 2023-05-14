@@ -236,7 +236,6 @@ in
 
       systemd.services.usbip_hoster = {
         description = "Host usb device via usbip.";
-        wants = [ "usbip_host_timeout.timer" ];
         bindsTo = [ "usbip_server.service" ];
         serviceConfig = {
           Type = "oneshot";
