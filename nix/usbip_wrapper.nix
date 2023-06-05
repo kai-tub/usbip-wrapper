@@ -126,17 +126,18 @@ in
 
                   serviceConfig = {
                     Type = "oneshot";
-                    ExecStart = if nu_mode then ''
-                      ${cfg_host.package}/bin/usbip-wrapper-executor mount-remote \
-                        --tcp-port="${builtins.toString instance_value.port}" \
-                        "${instance_value.host}" \
-                        ${builtins.concatStringsSep " " instance_value.usb_ids}
-                    '' else ''
-                      ${cfg_host.package}/bin/usbip_wrapper mount-remote \
-                        --host="${instance_value.host}" \
-                        --tcp-port="${builtins.toString instance_value.port}" \
-                        -- ${builtins.concatStringsSep " " instance_value.usb_ids}
-                    '';
+                    ExecStart =
+                      if nu_mode then ''
+                        ${cfg_host.package}/bin/usbip-wrapper-executor mount-remote \
+                          --tcp-port="${builtins.toString instance_value.port}" \
+                          "${instance_value.host}" \
+                          ${builtins.concatStringsSep " " instance_value.usb_ids}
+                      '' else ''
+                        ${cfg_host.package}/bin/usbip_wrapper mount-remote \
+                          --host="${instance_value.host}" \
+                          --tcp-port="${builtins.toString instance_value.port}" \
+                          -- ${builtins.concatStringsSep " " instance_value.usb_ids}
+                      '';
                     # sleep is required to ensure that USB device is fully mounted
                     ExecStartPost = ''${pkgs.coreutils}/bin/sleep 1s'';
                   };
@@ -191,15 +192,16 @@ in
         conflicts = [ "usbip_host_timeout.service" ];
         serviceConfig = {
           Type = "simple";
-          ExecStart = if nu_mode then ''
-            ${cfg_host.package}/bin/usbip-wrapper-executor \
-              start-usb-hoster \
-              --tcp-port=${port_internal}
-          '' else ''
-            ${cfg_host.package}/bin/usbip_wrapper \
-              start-usb-hoster \
-              --tcp-port=${port_internal}
-          '';
+          ExecStart =
+            if nu_mode then ''
+              ${cfg_host.package}/bin/usbip-wrapper-executor \
+                start-usb-hoster \
+                --tcp-port=${port_internal}
+            '' else ''
+              ${cfg_host.package}/bin/usbip_wrapper \
+                start-usb-hoster \
+                --tcp-port=${port_internal}
+            '';
           # TODO: Disable pid file if not necessary
           Restart = "no";
           # Basic Hardening
@@ -239,15 +241,16 @@ in
         bindsTo = [ "usbip_server.service" ];
         serviceConfig = {
           Type = "oneshot";
-          ExecStart = if nu_mode then ''
-            ${cfg_host.package}/bin/usbip-wrapper-executor host \
-              --tcp-port=${port_internal} \
-              ${builtins.concatStringsSep " " cfg_host.usb_ids}
-          '' else ''
-            ${cfg_host.package}/bin/usbip_wrapper host \
-              --tcp-port=${port_internal} \
-              -- ${builtins.concatStringsSep " " cfg_host.usb_ids}
-          '';
+          ExecStart =
+            if nu_mode then ''
+              ${cfg_host.package}/bin/usbip-wrapper-executor host \
+                --tcp-port=${port_internal} \
+                ${builtins.concatStringsSep " " cfg_host.usb_ids}
+            '' else ''
+              ${cfg_host.package}/bin/usbip_wrapper host \
+                --tcp-port=${port_internal} \
+                -- ${builtins.concatStringsSep " " cfg_host.usb_ids}
+            '';
           # Restart = "always";
           # Basic Hardening
           NoNewPrivileges = "yes";
@@ -278,8 +281,10 @@ in
         serviceConfig = {
           # Sets the time before exiting when there are NO connections
           ExecStart = ''
-            ${config.systemd.package}/lib/systemd/systemd-socket-proxyd --exit-idle-time="1min" localhost:${port_internal}
+            ${config.systemd.package}/lib/systemd/systemd-socket-proxyd --exit-idle-time="3s" localhost:${port_internal}
           '';
+          # If no connections are available then also stop the hoster
+          PropagatesStopTo = [ "usbip_hoster.service" "usbip_server.service" ];
         };
       };
 
