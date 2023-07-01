@@ -1,8 +1,5 @@
 #!/usr/bin/env nu
-use std "assert"
-use std "log error"
-use std "log info"
-use std "log warning"
+use std log
 
 # FUTURE: Add additional code that checks whether or not `usbip` is available and provide
 # some nice error message to describe where and how to install it.
